@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 import cv2
+import torch
 from ultralytics import YOLO
 
 from app.config import Settings
@@ -35,12 +36,18 @@ class RealtimeDetector:
         self.target_class_ids = tuple(
             dict.fromkeys((settings.person_class_id, *settings.vehicle_class_ids))
         )
+        self._gpu_failed = False
 
     def _resolve_device(self, raw_device: str) -> int | str:
         value = raw_device.strip().lower()
+        if value == "auto":
+            return 0 if torch.cuda.is_available() else "cpu"
         if value == "cpu":
             return "cpu"
         if value.isdigit():
+            if not torch.cuda.is_available():
+                print("[YOLO] CUDA no disponible; usando CPU.")
+                return "cpu"
             return int(value)
         return raw_device
 
@@ -133,15 +140,39 @@ class RealtimeDetector:
                     break
 
                 start = time.perf_counter()
-                results = self._model.predict(
-                    source=frame,
-                    conf=self.settings.conf_threshold,
-                    iou=self.settings.iou_threshold,
-                    imgsz=self.settings.img_size,
-                    classes=list(self.target_class_ids),
-                    device=self._device,
-                    verbose=False,
-                )
+                try:
+                    results = self._model.predict(
+                        source=frame,
+                        conf=self.settings.conf_threshold,
+                        iou=self.settings.iou_threshold,
+                        imgsz=self.settings.img_size,
+                        classes=list(self.target_class_ids),
+                        device=self._device,
+                        verbose=False,
+                    )
+                except RuntimeError as exc:
+                    msg = str(exc).lower()
+                    if (
+                        "unable to find an engine" in msg
+                        and self._device != "cpu"
+                        and not self._gpu_failed
+                    ):
+                        # Fallback robusto: algunos builds Jetson fallan en ciertos kernels CUDA/cuDNN.
+                        print(
+                            "[YOLO] Error de engine CUDA/cuDNN; cambiando a CPU para mantener el servicio activo."
+                        )
+                        self._gpu_failed = True
+                        self._device = "cpu"
+                        self._model = YOLO(self.settings.model_path)
+                        time.sleep(0.2)
+                        continue
+                    print(f"[YOLO] RuntimeError en inferencia: {exc}")
+                    time.sleep(0.2)
+                    continue
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[YOLO] Error inesperado en inferencia: {exc}")
+                    time.sleep(0.2)
+                    continue
                 result = results[0]
 
                 people = 0

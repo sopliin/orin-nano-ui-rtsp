@@ -115,7 +115,7 @@ def load_settings() -> Settings:
         img_size=_get_int("IMG_SIZE", 640),
         jpeg_quality=_get_int("JPEG_QUALITY", 80),
         reconnect_delay_sec=_get_float("RECONNECT_DELAY_SEC", 2.0),
-        device=os.getenv("DEVICE", "0"),
+        device=os.getenv("DEVICE", "auto"),
         person_class_id=_get_int("PERSON_CLASS_ID", 0),
         vehicle_class_ids=_get_class_list("VEHICLE_CLASS_IDS", (2, 5, 7, 6)),
     )

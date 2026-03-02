@@ -82,6 +82,12 @@ Si tu cámara requiere TCP, usa:
 RTSP_TRANSPORT=tcp
 ```
 
+Si aparece `RuntimeError: GET was unable to find an engine to execute this computation`:
+```bash
+DEVICE=cpu
+```
+Luego reinicia `./run.sh`. El código también hace fallback automático a CPU si falla CUDA.
+
 Abrir:
 - UI: `http://<IP_JETSON>:8000/`
 - API: `http://<IP_JETSON>:8000/api/counts`
