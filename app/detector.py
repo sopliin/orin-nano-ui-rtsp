@@ -36,11 +36,6 @@ class RealtimeDetector:
             dict.fromkeys((settings.person_class_id, *settings.vehicle_class_ids))
         )
 
-        # Fuerza RTSP sobre TCP para evitar cortes frecuentes en redes inestables.
-        os.environ.setdefault(
-            "OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp|max_delay;500000"
-        )
-
     def _resolve_device(self, raw_device: str) -> int | str:
         value = raw_device.strip().lower()
         if value == "cpu":
@@ -83,13 +78,31 @@ class RealtimeDetector:
         with self._lock:
             self._snapshot = snapshot
 
+    def _transport_candidates(self) -> tuple[str, ...]:
+        if self.settings.rtsp_transport in {"udp", "tcp"}:
+            return (self.settings.rtsp_transport,)
+        # auto: primero UDP (cámaras que rechazan TCP), luego TCP.
+        return ("udp", "tcp")
+
+    def _backend_candidates(self) -> tuple[int, ...]:
+        return (cv2.CAP_FFMPEG, cv2.CAP_ANY)
+
+    def _set_ffmpeg_rtsp_options(self, transport: str) -> None:
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+            f"rtsp_transport;{transport}|max_delay;500000"
+        )
+
     def _open_capture(self) -> cv2.VideoCapture | None:
-        cap = cv2.VideoCapture(self.settings.rtsp_url, cv2.CAP_FFMPEG)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
-        if not cap.isOpened():
-            cap.release()
-            return None
-        return cap
+        for transport in self._transport_candidates():
+            self._set_ffmpeg_rtsp_options(transport)
+            for backend in self._backend_candidates():
+                cap = cv2.VideoCapture(self.settings.rtsp_url, backend)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
+                if cap.isOpened():
+                    print(f"[RTSP] conectado con transport={transport}, backend={backend}")
+                    return cap
+                cap.release()
+        return None
 
     def _worker(self) -> None:
         frame_id = 0

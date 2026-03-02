@@ -87,6 +87,7 @@ class Settings:
     host: str
     port: int
     rtsp_url: str
+    rtsp_transport: str
     model_path: str
     conf_threshold: float
     iou_threshold: float
@@ -99,10 +100,15 @@ class Settings:
 
 
 def load_settings() -> Settings:
+    rtsp_transport = os.getenv("RTSP_TRANSPORT", "auto").strip().lower()
+    if rtsp_transport not in {"auto", "udp", "tcp"}:
+        rtsp_transport = "auto"
+
     return Settings(
         host=os.getenv("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
         rtsp_url=_get_required_rtsp_url(),
+        rtsp_transport=rtsp_transport,
         model_path=os.getenv("MODEL_PATH", "yolo11n.pt"),
         conf_threshold=_get_float("CONF_THRESHOLD", 0.35),
         iou_threshold=_get_float("IOU_THRESHOLD", 0.45),

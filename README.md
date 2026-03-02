@@ -37,6 +37,7 @@ cd API_INTERFAZ
 ```bash
 cp .env.example .env
 RTSP_URL=rtsp://usuario:password@IP_CAMARA:554/stream1
+RTSP_TRANSPORT=auto
 ```
 
 Alternativa recomendada (fuera del repo):
@@ -71,6 +72,15 @@ Nota: `run.sh` busca automáticamente en este orden:
 4. `.env`
 
 Si `RTSP_URL` no está configurada correctamente, la app detiene el arranque con error explícito.
+
+Si ves error `461 Unsupported Transport`, configura explícitamente:
+```bash
+RTSP_TRANSPORT=udp
+```
+Si tu cámara requiere TCP, usa:
+```bash
+RTSP_TRANSPORT=tcp
+```
 
 Abrir:
 - UI: `http://<IP_JETSON>:8000/`
