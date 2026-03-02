@@ -23,9 +23,8 @@ MODEL_PATH=yolo11n.pt
 - `app/detector.py`: hilo de inferencia RTSP + YOLO11 + snapshot compartido.
 - `app/templates/index.html`: interfaz web.
 - `app/static/`: JS/CSS de UI.
-- `deploy/systemd/yolo11-rtsp.service.template`: template de servicio.
 - `scripts/setup.sh`: crea venv e instala dependencias.
-- `scripts/install_service.sh`: instala y habilita daemon `systemd`.
+- `run.sh`: ejecuta el servidor por terminal.
 
 ## Configuración
 1. Crear entorno e instalar:
@@ -45,16 +44,16 @@ RTSP_URL=rtsp://usuario:password@IP_CAMARA:554/stream1
 - `VEHICLE_CLASS_IDS=2,5,7,6` (car, bus, truck, train)
 - Se excluyen bicicleta (`1`) y motocicleta/scooter (`3`).
 
-## Ejecución manual
+## Ejecución por terminal
 ```bash
 cd API_INTERFAZ
 source .venv/bin/activate
 ./run.sh
 ```
 
-Si quieres usar un archivo fuera del repo:
+Opcional: usar archivo de entorno fuera del repo:
 ```bash
-ENV_FILE=/etc/yolo11-rtsp.env ./run.sh
+ENV_FILE=/etc/yolov11-rtsp.env ./run.sh
 ```
 
 Abrir:
@@ -77,38 +76,19 @@ Abrir:
 
 La sincronización con video se garantiza porque el stream MJPEG (`/video_feed`) y el endpoint `/api/counts` leen el mismo snapshot en memoria (mismo `frame_id`).
 
-## Instalar como servicio (daemon)
-Desde `API_INTERFAZ`:
-```bash
-sudo ./scripts/install_service.sh
-```
-
-Por defecto el servicio usa variables en `/etc/yolo11-rtsp.env` (creado con permisos `600`).
-Si quieres otra ruta:
-```bash
-sudo ENV_FILE=/ruta/segura/yolo11-rtsp.env ./scripts/install_service.sh
-```
-
-Comandos útiles:
-```bash
-sudo systemctl status yolo11-rtsp.service
-sudo systemctl restart yolo11-rtsp.service
-sudo journalctl -u yolo11-rtsp.service -f
-```
-
 ## Seguridad para GitHub (recomendado)
-- Nunca subas secretos al repositorio: `.env` y `.env.*` ya están ignorados por `.gitignore`.
+- Nunca subas secretos al repositorio: `.env` y `.env.*` están ignorados por `.gitignore`.
 - Sube solo `.env.example` con placeholders.
-- Guarda secretos reales solo en la Jetson, idealmente en `/etc/yolo11-rtsp.env`.
+- Guarda secretos reales solo en la Jetson, por ejemplo en `/etc/yolov11-rtsp.env`.
 - Protege el archivo de secretos:
 ```bash
-sudo chown root:root /etc/yolo11-rtsp.env
-sudo chmod 600 /etc/yolo11-rtsp.env
+sudo chown root:root /etc/yolov11-rtsp.env
+sudo chmod 600 /etc/yolov11-rtsp.env
 ```
 - Antes de hacer `git push`, valida que no se versionen secretos:
 ```bash
 git status
-git ls-files | grep -E '^\\.env|\\.env\\.' || true
+git ls-files | grep -E '^\.env|\.env\.' || true
 ```
 
 ## Notas de rendimiento para Orin Nano

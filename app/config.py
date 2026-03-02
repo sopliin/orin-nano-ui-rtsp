@@ -7,7 +7,30 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT_DIR / ".env")
+SYSTEM_ENV_FILE = Path("/etc/yolov11-rtsp.env")
+LEGACY_SYSTEM_ENV_FILE = Path("/etc/yolo11-rtsp.env")
+
+
+def _load_environment() -> None:
+    # Prioridad:
+    # 1) ENV_FILE explícito
+    # 2) /etc/yolov11-rtsp.env
+    # 3) compatibilidad: /etc/yolo11-rtsp.env
+    # 4) .env local del proyecto
+    explicit_env = os.getenv("ENV_FILE")
+    if explicit_env:
+        load_dotenv(explicit_env, override=False)
+        return
+
+    if SYSTEM_ENV_FILE.exists():
+        load_dotenv(SYSTEM_ENV_FILE, override=False)
+    elif LEGACY_SYSTEM_ENV_FILE.exists():
+        load_dotenv(LEGACY_SYSTEM_ENV_FILE, override=False)
+
+    load_dotenv(ROOT_DIR / ".env", override=False)
+
+
+_load_environment()
 
 
 DEFAULT_RTSP = "rtsp://usuario:password@192.168.1.100:554/stream1"

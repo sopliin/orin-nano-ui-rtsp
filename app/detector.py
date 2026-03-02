@@ -59,7 +59,7 @@ class RealtimeDetector:
 
         self._ensure_model()
         self._stop_event.clear()
-        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread = threading.Thread(target=self._worker, name="detector-worker")
         self._thread.start()
 
     def stop(self) -> None:
