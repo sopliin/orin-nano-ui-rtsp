@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monitor RTSP - YOLO11</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>Detección en tiempo real</h1>
+        <p>Modelo: <strong>{{ model }}</strong></p>
+        <p>
+          Clases de vehículo activas (COCO IDs):
+          <strong>{{ vehicle_classes }}</strong>
+          - bicicleta/moto tipo scooter excluidas.
+        </p>
+      </header>
+
+      <section class="video-panel">
+        <img id="stream" src="/video_feed" alt="Video con detecciones" />
+      </section>
+
+      <section class="metrics">
+        <article>
+          <h2>Peatones</h2>
+          <p id="people-count">0</p>
+        </article>
+        <article>
+          <h2>Vehículos</h2>
+          <p id="vehicle-count">0</p>
+        </article>
+        <article>
+          <h2>FPS</h2>
+          <p id="fps-value">0.00</p>
+        </article>
+        <article>
+          <h2>Frame ID</h2>
+          <p id="frame-id">0</p>
+        </article>
+      </section>
+
+      <section class="status">
+        <p id="connection">Estado RTSP: desconectado</p>
+        <p id="timestamp">Timestamp: -</p>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
