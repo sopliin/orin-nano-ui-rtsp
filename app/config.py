@@ -36,6 +36,16 @@ _load_environment()
 DEFAULT_RTSP = "rtsp://usuario:password@192.168.1.100:554/stream1"
 
 
+def _get_required_rtsp_url() -> str:
+    value = os.getenv("RTSP_URL", "").strip()
+    if not value or value == DEFAULT_RTSP:
+        raise ValueError(
+            "RTSP_URL no configurada correctamente. Define RTSP_URL en "
+            "/etc/yolov11-rtsp.env (o usa ENV_FILE=/ruta/al/archivo)."
+        )
+    return value
+
+
 def _get_int(name: str, default: int) -> int:
     value = os.getenv(name)
     if value is None:
@@ -92,7 +102,7 @@ def load_settings() -> Settings:
     return Settings(
         host=os.getenv("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
-        rtsp_url=os.getenv("RTSP_URL", DEFAULT_RTSP),
+        rtsp_url=_get_required_rtsp_url(),
         model_path=os.getenv("MODEL_PATH", "yolo11n.pt"),
         conf_threshold=_get_float("CONF_THRESHOLD", 0.35),
         iou_threshold=_get_float("IOU_THRESHOLD", 0.45),

@@ -39,6 +39,14 @@ cp .env.example .env
 RTSP_URL=rtsp://usuario:password@IP_CAMARA:554/stream1
 ```
 
+Alternativa recomendada (fuera del repo):
+```bash
+sudo cp .env.example /etc/yolov11-rtsp.env
+sudo nano /etc/yolov11-rtsp.env
+sudo chown "$USER":"$USER" /etc/yolov11-rtsp.env
+sudo chmod 600 /etc/yolov11-rtsp.env
+```
+
 3. Mantener clases objetivo (COCO):
 - `PERSON_CLASS_ID=0`
 - `VEHICLE_CLASS_IDS=2,5,7,6` (car, bus, truck, train)
@@ -55,6 +63,14 @@ Opcional: usar archivo de entorno fuera del repo:
 ```bash
 ENV_FILE=/etc/yolov11-rtsp.env ./run.sh
 ```
+
+Nota: `run.sh` busca automáticamente en este orden:
+1. `ENV_FILE` (si lo defines)
+2. `/etc/yolov11-rtsp.env`
+3. `/etc/yolo11-rtsp.env`
+4. `.env`
+
+Si `RTSP_URL` no está configurada correctamente, la app detiene el arranque con error explícito.
 
 Abrir:
 - UI: `http://<IP_JETSON>:8000/`
@@ -82,7 +98,7 @@ La sincronización con video se garantiza porque el stream MJPEG (`/video_feed`)
 - Guarda secretos reales solo en la Jetson, por ejemplo en `/etc/yolov11-rtsp.env`.
 - Protege el archivo de secretos:
 ```bash
-sudo chown root:root /etc/yolov11-rtsp.env
+sudo chown "$USER":"$USER" /etc/yolov11-rtsp.env
 sudo chmod 600 /etc/yolov11-rtsp.env
 ```
 - Antes de hacer `git push`, valida que no se versionen secretos:
