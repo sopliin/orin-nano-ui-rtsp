@@ -4,7 +4,8 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
 
-python3 -m venv .venv
+# --system-site-packages reutiliza el torch y opencv instalados por JetPack (con CUDA)
+python3 -m venv .venv --system-site-packages
 source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt

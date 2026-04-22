@@ -7,8 +7,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-SYSTEM_ENV_FILE = Path("/etc/yolov11-rtsp.env")
-LEGACY_SYSTEM_ENV_FILE = Path("/etc/yolo11-rtsp.env")
+SYSTEM_ENV_FILE = Path("/etc/yolov5-rtsp.env")
+LEGACY_SYSTEM_ENV_FILE = Path("/etc/yolov11-rtsp.env")
 
 
 def _load_environment() -> None:
@@ -41,7 +41,7 @@ def _get_required_rtsp_url() -> str:
     if not value or value == DEFAULT_RTSP:
         raise ValueError(
             "RTSP_URL no configurada correctamente. Define RTSP_URL en "
-            "/etc/yolov11-rtsp.env (o usa ENV_FILE=/ruta/al/archivo)."
+            "/etc/yolov5-rtsp.env (o usa ENV_FILE=/ruta/al/archivo)."
         )
     return value
 
@@ -109,7 +109,7 @@ def load_settings() -> Settings:
         port=_get_int("PORT", 8000),
         rtsp_url=_get_required_rtsp_url(),
         rtsp_transport=rtsp_transport,
-        model_path=os.getenv("MODEL_PATH", "yolo11n.pt"),
+        model_path=os.getenv("MODEL_PATH", "weights/yolov5n_custom.pt"),
         conf_threshold=_get_float("CONF_THRESHOLD", 0.35),
         iou_threshold=_get_float("IOU_THRESHOLD", 0.45),
         img_size=_get_int("IMG_SIZE", 640),
@@ -117,5 +117,5 @@ def load_settings() -> Settings:
         reconnect_delay_sec=_get_float("RECONNECT_DELAY_SEC", 2.0),
         device=os.getenv("DEVICE", "auto"),
         person_class_id=_get_int("PERSON_CLASS_ID", 0),
-        vehicle_class_ids=_get_class_list("VEHICLE_CLASS_IDS", (2, 5, 7, 6)),
+        vehicle_class_ids=_get_class_list("VEHICLE_CLASS_IDS", (1,)),
     )

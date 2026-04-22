@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import cv2
 import torch
-from ultralytics import YOLO
+import yolov5
 
 from app.config import Settings
 
@@ -27,7 +27,7 @@ class DetectionSnapshot:
 class RealtimeDetector:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._model: YOLO | None = None
+        self._model = None
         self._device = self._resolve_device(settings.device)
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -38,27 +38,33 @@ class RealtimeDetector:
         )
         self._gpu_failed = False
 
-    def _resolve_device(self, raw_device: str) -> int | str:
+    def _resolve_device(self, raw_device: str) -> str:
         value = raw_device.strip().lower()
         if value == "auto":
-            return 0 if torch.cuda.is_available() else "cpu"
+            return "0" if torch.cuda.is_available() else "cpu"
         if value == "cpu":
             return "cpu"
         if value.isdigit():
             if not torch.cuda.is_available():
-                print("[YOLO] CUDA no disponible; usando CPU.")
+                print("[YOLOv5] CUDA no disponible; usando CPU.")
                 return "cpu"
-            return int(value)
+            return value
         return raw_device
+
+    def _load_model(self, device: str):
+        model = yolov5.load(self.settings.model_path, device=device)
+        model.conf = self.settings.conf_threshold
+        model.iou = self.settings.iou_threshold
+        model.classes = list(self.target_class_ids)
+        return model
 
     def _ensure_model(self) -> None:
         if self._model is None:
-            self._model = YOLO(self.settings.model_path)
+            self._model = self._load_model(self._device)
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
-
         self._ensure_model()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._worker, name="detector-worker")
@@ -88,7 +94,6 @@ class RealtimeDetector:
     def _transport_candidates(self) -> tuple[str, ...]:
         if self.settings.rtsp_transport in {"udp", "tcp"}:
             return (self.settings.rtsp_transport,)
-        # auto: primero UDP (cámaras que rechazan TCP), luego TCP.
         return ("udp", "tcp")
 
     def _backend_candidates(self) -> tuple[int, ...]:
@@ -141,15 +146,7 @@ class RealtimeDetector:
 
                 start = time.perf_counter()
                 try:
-                    results = self._model.predict(
-                        source=frame,
-                        conf=self.settings.conf_threshold,
-                        iou=self.settings.iou_threshold,
-                        imgsz=self.settings.img_size,
-                        classes=list(self.target_class_ids),
-                        device=self._device,
-                        verbose=False,
-                    )
+                    results = self._model(frame, size=self.settings.img_size)
                 except RuntimeError as exc:
                     msg = str(exc).lower()
                     if (
@@ -157,34 +154,36 @@ class RealtimeDetector:
                         and self._device != "cpu"
                         and not self._gpu_failed
                     ):
-                        # Fallback robusto: algunos builds Jetson fallan en ciertos kernels CUDA/cuDNN.
                         print(
-                            "[YOLO] Error de engine CUDA/cuDNN; cambiando a CPU para mantener el servicio activo."
+                            "[YOLOv5] Error de engine CUDA/cuDNN; cambiando a CPU para mantener el servicio activo."
                         )
                         self._gpu_failed = True
                         self._device = "cpu"
-                        self._model = YOLO(self.settings.model_path)
+                        self._model = self._load_model("cpu")
                         time.sleep(0.2)
                         continue
-                    print(f"[YOLO] RuntimeError en inferencia: {exc}")
+                    print(f"[YOLOv5] RuntimeError en inferencia: {exc}")
                     time.sleep(0.2)
                     continue
                 except Exception as exc:  # noqa: BLE001
-                    print(f"[YOLO] Error inesperado en inferencia: {exc}")
+                    print(f"[YOLOv5] Error inesperado en inferencia: {exc}")
                     time.sleep(0.2)
                     continue
-                result = results[0]
 
+                # results.pred[0]: tensor [N, 6] — x1, y1, x2, y2, conf, cls
+                detections = results.pred[0]
                 people = 0
                 vehicles = 0
-                if result.boxes is not None and result.boxes.cls is not None:
-                    for cls_id in result.boxes.cls.int().tolist():
+                if detections is not None and len(detections):
+                    for *_, cls_id in detections.tolist():
+                        cls_id = int(cls_id)
                         if cls_id == self.settings.person_class_id:
                             people += 1
                         elif cls_id in self.settings.vehicle_class_ids:
                             vehicles += 1
 
-                annotated = result.plot(conf=True, labels=True)
+                # render() anota el frame en memoria y devuelve lista de numpy arrays (BGR)
+                annotated = results.render()[0]
                 elapsed = max(time.perf_counter() - start, 1e-6)
                 fps = 1.0 / elapsed
 
