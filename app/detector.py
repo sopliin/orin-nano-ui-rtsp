@@ -30,6 +30,7 @@ class RealtimeDetector:
         self._model = None
         self._device = self._resolve_device(settings.device)
         self._stop_event = threading.Event()
+        self._restart_event = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
         self._snapshot = DetectionSnapshot()
@@ -37,6 +38,17 @@ class RealtimeDetector:
             dict.fromkeys((settings.person_class_id, *settings.vehicle_class_ids))
         )
         self._gpu_failed = False
+
+    @property
+    def _is_file(self) -> bool:
+        return self.settings.source_type == "file"
+
+    def request_restart(self) -> None:
+        """Señaliza al worker que reinicie la fuente desde el principio.
+        Para RTSP no tiene efecto (la reconexión es automática).
+        """
+        if self._is_file:
+            self._restart_event.set()
 
     def _resolve_device(self, raw_device: str) -> str:
         value = raw_device.strip().lower()
@@ -72,6 +84,7 @@ class RealtimeDetector:
 
     def stop(self) -> None:
         self._stop_event.set()
+        self._restart_event.set()  # desbloquea wait() si estaba esperando
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5)
 
@@ -91,6 +104,8 @@ class RealtimeDetector:
         with self._lock:
             self._snapshot = snapshot
 
+    # ------------------------------------------------------------------ RTSP
+
     def _transport_candidates(self) -> tuple[str, ...]:
         if self.settings.rtsp_transport in {"udp", "tcp"}:
             return (self.settings.rtsp_transport,)
@@ -104,17 +119,29 @@ class RealtimeDetector:
             f"rtsp_transport;{transport}|max_delay;500000"
         )
 
+    # ------------------------------------------------------------------ captura
+
     def _open_capture(self) -> cv2.VideoCapture | None:
+        if self._is_file:
+            cap = cv2.VideoCapture(self.settings.video_source)
+            if cap.isOpened():
+                print(f"[VIDEO] archivo abierto: {self.settings.video_source}")
+                return cap
+            print(f"[VIDEO] no se pudo abrir: {self.settings.video_source}")
+            return None
+
         for transport in self._transport_candidates():
             self._set_ffmpeg_rtsp_options(transport)
             for backend in self._backend_candidates():
-                cap = cv2.VideoCapture(self.settings.rtsp_url, backend)
+                cap = cv2.VideoCapture(self.settings.video_source, backend)
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 2)
                 if cap.isOpened():
                     print(f"[RTSP] conectado con transport={transport}, backend={backend}")
                     return cap
                 cap.release()
         return None
+
+    # ------------------------------------------------------------------ worker
 
     def _worker(self) -> None:
         frame_id = 0
@@ -132,17 +159,39 @@ class RealtimeDetector:
                 time.sleep(self.settings.reconnect_delay_sec)
                 continue
 
+            self._restart_event.clear()
+
             while not self._stop_event.is_set():
+                # Restart solicitado mientras el video estaba en reproducción
+                if self._is_file and self._restart_event.is_set():
+                    self._restart_event.clear()
+                    break
+
                 ok, frame = capture.read()
                 if not ok:
-                    self._set_snapshot(
-                        DetectionSnapshot(
-                            frame_id=frame_id,
-                            timestamp=datetime.now(timezone.utc).isoformat(),
-                            connected=False,
+                    if self._is_file:
+                        # Archivo terminado: esperar a que el browser refresque
+                        self._set_snapshot(
+                            DetectionSnapshot(
+                                frame_id=frame_id,
+                                timestamp=datetime.now(timezone.utc).isoformat(),
+                                connected=False,
+                            )
                         )
-                    )
-                    break
+                        while not self._stop_event.is_set():
+                            if self._restart_event.wait(timeout=0.5):
+                                self._restart_event.clear()
+                                break
+                        break  # reabrir el archivo desde el principio
+                    else:
+                        self._set_snapshot(
+                            DetectionSnapshot(
+                                frame_id=frame_id,
+                                timestamp=datetime.now(timezone.utc).isoformat(),
+                                connected=False,
+                            )
+                        )
+                        break
 
                 start = time.perf_counter()
                 try:
@@ -182,7 +231,6 @@ class RealtimeDetector:
                         elif cls_id in self.settings.vehicle_class_ids:
                             vehicles += 1
 
-                # render() anota el frame en memoria y devuelve lista de numpy arrays (BGR)
                 annotated = results.render()[0]
                 elapsed = max(time.perf_counter() - start, 1e-6)
                 fps = 1.0 / elapsed
@@ -221,4 +269,5 @@ class RealtimeDetector:
                 )
 
             capture.release()
-            time.sleep(self.settings.reconnect_delay_sec)
+            if not self._is_file:
+                time.sleep(self.settings.reconnect_delay_sec)

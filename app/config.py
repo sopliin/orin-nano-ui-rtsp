@@ -14,8 +14,8 @@ LEGACY_SYSTEM_ENV_FILE = Path("/etc/yolov11-rtsp.env")
 def _load_environment() -> None:
     # Prioridad:
     # 1) ENV_FILE explícito
-    # 2) /etc/yolov11-rtsp.env
-    # 3) compatibilidad: /etc/yolo11-rtsp.env
+    # 2) /etc/yolov5-rtsp.env
+    # 3) compatibilidad: /etc/yolov11-rtsp.env
     # 4) .env local del proyecto
     explicit_env = os.getenv("ENV_FILE")
     if explicit_env:
@@ -36,12 +36,14 @@ _load_environment()
 DEFAULT_RTSP = "rtsp://usuario:password@192.168.1.100:554/stream1"
 
 
-def _get_required_rtsp_url() -> str:
-    value = os.getenv("RTSP_URL", "").strip()
+def _get_required_video_source() -> str:
+    # VIDEO_SOURCE tiene prioridad; RTSP_URL se mantiene por compatibilidad
+    value = (os.getenv("VIDEO_SOURCE", "").strip()
+             or os.getenv("RTSP_URL", "").strip())
     if not value or value == DEFAULT_RTSP:
         raise ValueError(
-            "RTSP_URL no configurada correctamente. Define RTSP_URL en "
-            "/etc/yolov5-rtsp.env (o usa ENV_FILE=/ruta/al/archivo)."
+            "VIDEO_SOURCE no configurada. Define VIDEO_SOURCE en .env "
+            "(URL rtsp:// o ruta absoluta a un archivo de video)."
         )
     return value
 
@@ -86,7 +88,8 @@ def _get_class_list(name: str, default: tuple[int, ...]) -> tuple[int, ...]:
 class Settings:
     host: str
     port: int
-    rtsp_url: str
+    video_source: str
+    source_type: str        # "rtsp" | "file"
     rtsp_transport: str
     model_path: str
     conf_threshold: float
@@ -100,6 +103,9 @@ class Settings:
 
 
 def load_settings() -> Settings:
+    video_source = _get_required_video_source()
+    source_type = "rtsp" if video_source.lower().startswith("rtsp://") else "file"
+
     rtsp_transport = os.getenv("RTSP_TRANSPORT", "auto").strip().lower()
     if rtsp_transport not in {"auto", "udp", "tcp"}:
         rtsp_transport = "auto"
@@ -107,7 +113,8 @@ def load_settings() -> Settings:
     return Settings(
         host=os.getenv("HOST", "0.0.0.0"),
         port=_get_int("PORT", 8000),
-        rtsp_url=_get_required_rtsp_url(),
+        video_source=video_source,
+        source_type=source_type,
         rtsp_transport=rtsp_transport,
         model_path=os.getenv("MODEL_PATH", "weights/yolov5n_custom.pt"),
         conf_threshold=_get_float("CONF_THRESHOLD", 0.35),

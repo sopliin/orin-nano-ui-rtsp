@@ -29,8 +29,8 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="Jetson YOLO11 RTSP Monitor",
-    version="1.0.0",
+    title="Jetson YOLOv5 Monitor",
+    version="2.0.0",
     lifespan=lifespan,
 )
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -64,6 +64,7 @@ def frame_generator():
 
 @app.get("/video_feed")
 def video_feed():
+    detector.request_restart()
     return StreamingResponse(
         frame_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame",
